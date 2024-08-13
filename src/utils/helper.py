@@ -124,8 +124,55 @@ def remove_ddp_dumplicate_key(state_dict):
         state_dict_new[key.replace('module.', '')] = state_dict[key]
     return state_dict_new
 
-
 def load_model(ckpt_path, model_config, device, model_type):
+    model_params = model_config['model_params'][f'{model_type}_params']
+
+    # Force the device to be CPU
+    device = torch.device('cpu')
+
+    if model_type == 'appearance_feature_extractor':
+        model = AppearanceFeatureExtractor(**model_params).to(device)
+    elif model_type == 'motion_extractor':
+        model = MotionExtractor(**model_params).to(device)
+    elif model_type == 'warping_module':
+        model = WarpingNetwork(**model_params).to(device)
+    elif model_type == 'spade_generator':
+        model = SPADEDecoder(**model_params).to(device)
+    elif model_type == 'stitching_retargeting_module':
+        # Special handling for stitching and retargeting module
+        config = model_config['model_params']['stitching_retargeting_module_params']
+        checkpoint = torch.load(ckpt_path, map_location=device)
+
+        stitcher = StitchingRetargetingNetwork(**config.get('stitching'))
+        stitcher.load_state_dict(remove_ddp_dumplicate_key(checkpoint['retarget_shoulder']))
+        stitcher = stitcher.to(device)
+        stitcher.eval()
+
+        retargetor_lip = StitchingRetargetingNetwork(**config.get('lip'))
+        retargetor_lip.load_state_dict(remove_ddp_dumplicate_key(checkpoint['retarget_mouth']))
+        retargetor_lip = retargetor_lip.to(device)
+        retargetor_lip.eval()
+
+        retargetor_eye = StitchingRetargetingNetwork(**config.get('eye'))
+        retargetor_eye.load_state_dict(remove_ddp_dumplicate_key(checkpoint['retarget_eye']))
+        retargetor_eye = retargetor_eye.to(device)
+        retargetor_eye.eval()
+
+        return {
+            'stitching': stitcher,
+            'lip': retargetor_lip,
+            'eye': retargetor_eye
+        }
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+    # Load the model weights to CPU
+    model.load_state_dict(torch.load(ckpt_path, map_location=device))
+    model.eval()
+    return model
+
+
+def load_model_gpu(ckpt_path, model_config, device, model_type):
     model_params = model_config['model_params'][f'{model_type}_params']
 
     if model_type == 'appearance_feature_extractor':

@@ -38,7 +38,7 @@ class LivePortraitPipeline(object):
         self.live_portrait_wrapper: LivePortraitWrapper = LivePortraitWrapper(inference_cfg=inference_cfg)
         self.cropper: Cropper = Cropper(crop_cfg=crop_cfg)
 
-    def make_motion_template(self, I_lst, c_eyes_lst, c_lip_lst, **kwargs):
+    def old_make_motion_template(self, I_lst, c_eyes_lst, c_lip_lst, **kwargs):
         n_frames = I_lst.shape[0]
         template_dct = {
             'n_frames': n_frames,
@@ -72,8 +72,52 @@ class LivePortraitPipeline(object):
             c_lip = c_lip_lst[i].astype(np.float32)
             template_dct['c_lip_lst'].append(c_lip)
 
-
         return template_dct
+
+
+    def make_motion_template(self, I_lst, c_eyes_lst, c_lip_lst, **kwargs):
+        n_frames = I_lst.shape[0]
+        output_fps = kwargs.get('output_fps', 25)
+
+        # Preallocate lists to reduce dynamic memory allocation overhead
+        motion = []
+        c_eyes_list = []
+        c_lip_list = []
+
+        # Loop through frames and process
+        for i in track(range(n_frames), description='Making motion templates...', total=n_frames):
+            # Extract keypoint info once
+            x_i_info = self.live_portrait_wrapper.get_kp_info(I_lst[i])
+
+            # Precompute the rotation matrix and transform keypoints
+            R_i = get_rotation_matrix(x_i_info['pitch'], x_i_info['yaw'], x_i_info['roll'])
+            x_s = self.live_portrait_wrapper.transform_keypoint(x_i_info)
+
+            # Prepare the dictionary of motion data for the current frame
+            item_dct = {
+                'scale': x_i_info['scale'].cpu().numpy().astype(np.float32),
+                'R': R_i.cpu().numpy().astype(np.float32),
+                'exp': x_i_info['exp'].cpu().numpy().astype(np.float32),
+                't': x_i_info['t'].cpu().numpy().astype(np.float32),
+                'kp': x_i_info['kp'].cpu().numpy().astype(np.float32),
+                'x_s': x_s.cpu().numpy().astype(np.float32),
+            }
+
+            motion.append(item_dct)
+            c_eyes_list.append(c_eyes_lst[i].astype(np.float32))
+            c_lip_list.append(c_lip_lst[i].astype(np.float32))
+
+            # Clear unnecessary variables to free memory
+            del I_lst[i], x_i_info, R_i, x_s
+
+        # Return the template dictionary with the precomputed lists
+        return {
+            'n_frames': n_frames,
+            'output_fps': output_fps,
+            'motion': motion,
+            'c_eyes_lst': c_eyes_list,
+            'c_lip_lst': c_lip_list,
+        }
 
     def execute(self, args: ArgumentConfig):
         # for convenience

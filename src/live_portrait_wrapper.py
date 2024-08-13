@@ -29,16 +29,16 @@ class LivePortraitWrapper(object):
         self.inference_cfg = inference_cfg
         self.device_id = inference_cfg.device_id
         self.compile = inference_cfg.flag_do_torch_compile
-        if inference_cfg.flag_force_cpu:
+        if self.inference_cfg.flag_force_cpu:
             self.device = 'cpu'
         else:
             try:
                 if torch.backends.mps.is_available():
                     self.device = 'mps'
                 else:
-                    self.device = 'cuda:' + str(self.device_id)
+                    self.device = 'cpu'#''cuda:' + str(self.device_id)
             except:
-                self.device = 'cuda:' + str(self.device_id)
+                self.device = 'cpu' + str(self.device_id)
 
         model_config = yaml.load(open(inference_cfg.models_config, 'r'), Loader=yaml.SafeLoader)
         # init F
@@ -347,7 +347,7 @@ class LivePortraitWrapperAnimal(LivePortraitWrapper):
         if inference_cfg.flag_force_cpu:
             self.device = 'cpu'
         else:
-            try: 
+            try:
                 if torch.backends.mps.is_available():
                     self.device = 'mps'
                 else:

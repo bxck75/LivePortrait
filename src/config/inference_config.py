@@ -31,7 +31,7 @@ class InferenceConfig(PrintableConfig):
     # EXPORTED PARAMS
     flag_use_half_precision: bool = True
     flag_crop_driving_video: bool = False
-    device_id: int = 0
+    device_id: int = -1
     flag_normalize_lip: bool = True
     flag_source_video_eye_retargeting: bool = False
     flag_video_editing_head_rotation: bool = False
@@ -42,7 +42,7 @@ class InferenceConfig(PrintableConfig):
     flag_pasteback: bool = True
     flag_do_crop: bool = True
     flag_do_rot: bool = True
-    flag_force_cpu: bool = False
+    flag_force_cpu: bool = True
     flag_do_torch_compile: bool = False
     driving_option: str = "pose-friendly" # "expression-friendly" or "pose-friendly"
     driving_multiplier: float = 1.0
